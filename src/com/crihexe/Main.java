@@ -23,6 +23,12 @@ public class Main {
 	private String subtitle;
 	private boolean forcedSubtitle;	// it is possible that in the credits an explicit subtitle is defined. in this case "movement" basically gets fucked
 	
+	private String author;	// the main author (or the composer)
+	private boolean authorFound;
+	
+	private String arranger;	// the arranger (or sometimes the author if not specified)
+	private boolean arrangerFound;
+	
 	public Main() {
 		try {
 			
@@ -89,23 +95,23 @@ public class Main {
 						forcedSubtitle = true;
 					// let's also check for some other metadata
 					} else if(type.equals("author")) {
-						
+						author = value;
+						authorFound = true;
 					} else if(type.equals("composer")) {
-						
+						author = value;
+						authorFound = true;
 					} else if(type.equals("arranger")) {
-						
-					} else if(type.equals("lyricist")) {
-						
-					} else if(type.equals("part name")) {
+						arranger = value;
+						arrangerFound = true;
+					}/* else if(type.equals("lyricist")) {	// too detailed, maybe in the future
 						
 					} else if(type.equals("poet")) {
 						
-					}
+					}*/
 				}
 			});
 			
 			
-			// let's now try to get the author, composer, arranger, poet
 			
 		} catch (Exception e) {
 			e.printStackTrace();
