@@ -25,6 +25,7 @@ import com.scalified.tree.TreeNode;
 public class Main {
 	
 	private final String[] KEYS_FIFTHS = new String[] {"C-", "G-", "D-", "A-", "E-", "B-", "F", "C", "G", "D", "A", "E", "B", "F+", "C+"};	// just add 7 to musicXML fifths to get the index
+	private final HashMap<String, String> DURATIONS = new HashMap<>();
 	
 	private String title;	// main Title of the score unless a movement is specified
 	private String title_number;
@@ -52,7 +53,24 @@ public class Main {
 	private String topMargin;
 	private String bottomMargin;*/
 	
+	
+	private LDPNode lastBarlineNode;
+	
 	public Main() {
+		DURATIONS.put("128th", "o");
+		DURATIONS.put("64th", "i");
+		DURATIONS.put("32th", "t");
+		DURATIONS.put("16th", "s");
+		DURATIONS.put("sixteenth", "s");
+		DURATIONS.put("8th", "e");
+		DURATIONS.put("eighth", "e");
+		DURATIONS.put("4th", "q");
+		DURATIONS.put("quarter", "q");
+		DURATIONS.put("half", "h");
+		DURATIONS.put("whole", "w");
+		DURATIONS.put("breve", "b");
+		DURATIONS.put("long", "l");
+		
 		try {
 			
 			StringBuilder ldp = new StringBuilder();
@@ -176,6 +194,7 @@ public class Main {
 			// let's now define the final attributes
 			String finalTitle = "";
 			String finalSubtitle = "";
+			boolean subtitleFound;
 			
 			if(movementFound) {
 				finalTitle = movement;
@@ -183,9 +202,11 @@ public class Main {
 					finalSubtitle = subtitle;
 				else
 					finalSubtitle = title;
+				subtitleFound = true;
 			} else {
 				finalTitle = title;
 				finalSubtitle = subtitle;
+				subtitleFound = forcedSubtitle;
 			}
 			
 			// let's now begin to write the LDP file
@@ -204,7 +225,8 @@ public class Main {
 						node("dx", ""),
 						node("dy", "")*/
 					));
-			tree.add(node("title", "center", "\"" + finalSubtitle + "\"", 
+			if(subtitleFound)
+				tree.add(node("title", "center", "\"" + finalSubtitle + "\"", 
 						node("style", "\"subtitle\"")
 					));
 				// TODO add author and arranger
@@ -264,15 +286,50 @@ public class Main {
 								den = frac.second;
 							}
 							data.add(node("time", ""+num, ""+den));
-						} catch(Exception ex) {
-							ex.printStackTrace();
-						}
+						} catch(Exception ex) {}
 					} catch(NodeTaskException ex) {}
 					
+					forEachPrev(measure.getElementsByTagName("note"), (no, prev) -> {
+						Element note = toElement(no);
+						String step = first(note.getElementsByTagName("step")).getTextContent();
+						String octave = first(note.getElementsByTagName("octave")).getTextContent();
+						int duration = Integer.parseInt(first(note.getElementsByTagName("duration")).getTextContent());	// TODO attention with dotted values. its like the normal note + normal/2
+						String type = first(note.getElementsByTagName("type")).getTextContent();
+						int voice = Integer.parseInt(first(note.getElementsByTagName("voice")).getTextContent());
+						int p = voice/4+1;
+						
+						boolean chord = note.getElementsByTagName("chord").getLength() > 0;
+						
+						String ldpDuration = DURATIONS.get(type);
+						
+						LDPNode toAdd = data;
+						if(chord) {
+							LDPNode prevParent = (LDPNode) prev.parent();
+							if(prevParent.data().equals("chord"))
+								toAdd = prevParent;
+							else {
+								toAdd = data.add(node("chord"));	// è un casino occhio
+								prevParent.remove(prev);
+								toAdd.add(prev);
+							}
+						}
+						
+						return toAdd.add(node("n", step.toLowerCase() + octave, ldpDuration, "v"+voice, "p"+p));
+					});
 					
-					
+					lastBarlineNode = data.add(node("barline", "simple"));
 				});
+				data.remove(lastBarlineNode);
+				data.add(node("barline", "end"));
 			});
+			
+			
+			
+			
+			
+			
+			
+			// let's finally traverse the tree in order to print the ldp data
 			final int topNodeLevel = tree.level();
 			
 			tree.traversePreOrder(new TraversalAction<TreeNode<String>>() {
@@ -319,7 +376,18 @@ public class Main {
 			try {
 				action.exec(list.item(i));
 			} catch(NodeTaskException e) {
-				e.printStackTrace();
+				//e.printStackTrace();
+			}
+			
+		return list.getLength() > 0;
+	}
+	public boolean forEachPrev(NodeList list, NodeTaskPrev action) {
+		LDPNode prev = null;
+		for(int i = 0; i < list.getLength(); i++)
+			try {
+				prev = action.exec(list.item(i), prev);
+			} catch(NodeTaskException e) {
+				//e.printStackTrace();
 			}
 			
 		return list.getLength() > 0;
@@ -342,6 +410,10 @@ public class Main {
 	
 	interface NodeTask {
 		void exec(Node n) throws NodeTaskException;
+	}
+	
+	interface NodeTaskPrev {
+		LDPNode exec(Node n, LDPNode prev) throws NodeTaskException;
 	}
 	
 	class Pair<K, V> {
