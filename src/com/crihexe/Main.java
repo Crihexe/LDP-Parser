@@ -26,6 +26,7 @@ public class Main {
 	
 	private final String[] KEYS_FIFTHS = new String[] {"C-", "G-", "D-", "A-", "E-", "B-", "F", "C", "G", "D", "A", "E", "B", "F+", "C+"};	// just add 7 to musicXML fifths to get the index
 	private final HashMap<String, String> DURATIONS = new HashMap<>();
+	private final HashMap<String, String> ACCIDENTALS = new HashMap<>();
 	
 	private String title;	// main Title of the score unless a movement is specified
 	private String title_number;
@@ -70,6 +71,15 @@ public class Main {
 		DURATIONS.put("whole", "w");
 		DURATIONS.put("breve", "b");
 		DURATIONS.put("long", "l");
+		
+		ACCIDENTALS.put("sharp", "+");
+		ACCIDENTALS.put("natural", "=");
+		ACCIDENTALS.put("flat", "-");
+		ACCIDENTALS.put("double-sharp", "x");
+		ACCIDENTALS.put("sharp-sharp", "++");
+		ACCIDENTALS.put("flat-flat", "--");
+		ACCIDENTALS.put("natural-sharp", "=+");
+		ACCIDENTALS.put("natural-flat", "=-");
 		
 		try {
 			
@@ -291,12 +301,42 @@ public class Main {
 					
 					forEachPrev(measure.getElementsByTagName("note"), (no, prev) -> {
 						Element note = toElement(no);
-						String step = first(note.getElementsByTagName("step")).getTextContent();
-						String octave = first(note.getElementsByTagName("octave")).getTextContent();
-						int duration = Integer.parseInt(first(note.getElementsByTagName("duration")).getTextContent());	// TODO attention with dotted values. its like the normal note + normal/2
-						String type = first(note.getElementsByTagName("type")).getTextContent();
-						int voice = Integer.parseInt(first(note.getElementsByTagName("voice")).getTextContent());
+						
+						boolean rest = false;
+						try {
+							first(note.getElementsByTagName("rest"));
+							rest = true;	// aka if there is an element rest, this note is a rest
+						} catch(Exception ex) {}
+						
+						boolean hide = note.getAttribute("print-object").equals("no");
+						
+						String step = "";
+						String octave = "";
+						int duration = -1;
+						String type = "";
+						int voice = -1;
+						
+						try {
+							step = first(note.getElementsByTagName("step")).getTextContent();
+							octave = first(note.getElementsByTagName("octave")).getTextContent();
+						} catch(Exception ex) {}
+						try {
+							duration = Integer.parseInt(first(note.getElementsByTagName("duration")).getTextContent());	// TODO attention with dotted values. its like the normal note + normal/2
+						} catch(Exception ex) {}
+						try {
+							type = first(note.getElementsByTagName("type")).getTextContent();
+						} catch(Exception ex) {}
+						try {
+							voice = Integer.parseInt(first(note.getElementsByTagName("voice")).getTextContent());
+						} catch(Exception ex) {}
+						
 						int p = voice/4+1;
+						
+						String ldpAccidental = "";
+						try {
+							String accidental = first(note.getElementsByTagName("accidental")).getTextContent();
+							ldpAccidental = ACCIDENTALS.get(accidental);
+						} catch(Exception ex) {}	// TODO !!!!!!!!!! pay attention to make every first() or toElement() function under a try-catch block. (not really every lol but pay attention!)
 						
 						boolean chord = note.getElementsByTagName("chord").getLength() > 0;
 						
@@ -308,13 +348,15 @@ public class Main {
 							if(prevParent.data().equals("chord"))
 								toAdd = prevParent;
 							else {
-								toAdd = data.add(node("chord"));	// è un casino occhio
+								toAdd = data.add(node("chord"));
 								prevParent.remove(prev);
 								toAdd.add(prev);
 							}
 						}
 						
-						return toAdd.add(node("n", step.toLowerCase() + octave, ldpDuration, "v"+voice, "p"+p));
+						if(rest)
+							return toAdd.add(node(hide?"goFwd":"r", ldpDuration, "v"+voice));
+						return toAdd.add(node("n", (ldpAccidental==null?"":ldpAccidental) + step.toLowerCase() + octave, ldpDuration, "v"+voice, "p"+p));
 					});
 					
 					lastBarlineNode = data.add(node("barline", "simple"));
