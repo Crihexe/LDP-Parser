@@ -61,16 +61,40 @@ public class Main {
 		DURATIONS.put("128th", "o");
 		DURATIONS.put("64th", "i");
 		DURATIONS.put("32th", "t");
+		
 		DURATIONS.put("16th", "s");
 		DURATIONS.put("sixteenth", "s");
+		DURATIONS.put("1", "s");
+		
 		DURATIONS.put("8th", "e");
 		DURATIONS.put("eighth", "e");
+		DURATIONS.put("2", "e");
+		
+		DURATIONS.put("3", "e.");
+		
 		DURATIONS.put("4th", "q");
 		DURATIONS.put("quarter", "q");
+		DURATIONS.put("4", "q");
+		
+		DURATIONS.put("6", "q.");
+		
 		DURATIONS.put("half", "h");
+		DURATIONS.put("8", "h");
+		
+		DURATIONS.put("12", "h.");
+		
 		DURATIONS.put("whole", "w");
+		DURATIONS.put("16", "w");
+		
+		DURATIONS.put("24", "w.");
+		
 		DURATIONS.put("breve", "b");
+		DURATIONS.put("32", "b");
+		
+		DURATIONS.put("48", "b.");
+		
 		DURATIONS.put("long", "l");
+		DURATIONS.put("64", "l");
 		
 		ACCIDENTALS.put("sharp", "+");
 		ACCIDENTALS.put("natural", "=");
@@ -268,6 +292,10 @@ public class Main {
 				
 				forEach(e.getElementsByTagName("measure"), m -> {
 					Element measure = toElement(m);
+					
+					
+					int finalNum = 1;
+					int finalDen = 1;
 					try {
 						Element attrib = toElement(first(measure.getElementsByTagName("attributes")));
 						
@@ -295,17 +323,23 @@ public class Main {
 								num = frac.first;
 								den = frac.second;
 							}
+							finalNum = num;
+							finalDen = den;
 							data.add(node("time", ""+num, ""+den));
 						} catch(Exception ex) {}
 					} catch(NodeTaskException ex) {}
+					
+					final double timeFraction = (double)finalNum/(double)finalDen;
 					
 					forEachPrev(measure.getElementsByTagName("note"), (no, prev) -> {
 						Element note = toElement(no);
 						
 						boolean rest = false;
+						boolean fullRest = false;
 						try {
-							first(note.getElementsByTagName("rest"));
+							String measureAttr = toElement(first(note.getElementsByTagName("rest"))).getAttribute("measure");
 							rest = true;	// aka if there is an element rest, this note is a rest
+							fullRest = measureAttr.equals("yes");
 						} catch(Exception ex) {}
 						
 						boolean hide = note.getAttribute("print-object").equals("no");
@@ -330,7 +364,10 @@ public class Main {
 							voice = Integer.parseInt(first(note.getElementsByTagName("voice")).getTextContent());
 						} catch(Exception ex) {}
 						
-						int p = voice/4+1;
+						int p = voice/4+1;	// try to find the staff by voice
+						try {	// set p to the actual value if staff tag is specified
+							p = Integer.parseInt(first(note.getElementsByTagName("staff")).getTextContent());
+						} catch(Exception ex) {}
 						
 						String ldpAccidental = "";
 						try {
@@ -341,6 +378,20 @@ public class Main {
 						boolean chord = note.getElementsByTagName("chord").getLength() > 0;
 						
 						String ldpDuration = DURATIONS.get(type);
+						try {
+							duration = Integer.parseInt(first(note.getElementsByTagName("duration")).getTextContent());
+							// TODO I dont know how it works... i mean what if the time signature is something like 3/8? so im gonna try with 3/4 and 4/4, then maybe if I remember (TODO TODO) I will try
+							//int fullMeasure = finalNum*finalDen;	// TODO so if its like 3/4 the full measure duration is 12, 4/4 -> 16. with 3/8 its 24, so I think this is wrong but LOL idc
+							//fullMeasure/duration;
+							
+							// update: maybe I actually realized that <duration> is not related with time signature
+							ldpDuration = DURATIONS.get(""+duration);	// so I updated the durations map
+							
+							// to make a rest as long as a full measure, we have to know if its duration is equal to the max duration of the measure
+							if(rest)
+								if(fullRest || duration == timeFraction*16)
+									ldpDuration = DURATIONS.get("whole");
+						} catch(Exception ex) {}
 						
 						LDPNode toAdd = data;
 						if(chord) {
@@ -355,7 +406,7 @@ public class Main {
 						}
 						
 						if(rest)
-							return toAdd.add(node(hide?"goFwd":"r", ldpDuration, "v"+voice));
+							return toAdd.add(node(hide?"goFwd":"r", ldpDuration, "v"+voice, "p"+p));
 						return toAdd.add(node("n", (ldpAccidental==null?"":ldpAccidental) + step.toLowerCase() + octave, ldpDuration, "v"+voice, "p"+p));
 					});
 					
